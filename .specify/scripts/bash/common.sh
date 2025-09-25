@@ -89,21 +89,43 @@ set_current_feature() {
     echo "Current feature set to: $feature_id"
 }
 
+# JSON escape helper function
+json_escape() {
+    local input
+    input="$1"
+    printf '%s' "$input" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\n/\\n/g; s/\r/\\r/g'
+}
+
 # List all features in specs directory - returns pure JSON
 list_features() {
-    local repo_root=$(get_repo_root)
-    local specs_dir="$repo_root/specs"
-    local current_feature=$(get_current_feature)
+    local repo_root
+    local specs_dir
+    local current_feature
+    local features
+    local dir
+    local feature_name
+    local json_items
+    local feature
+    local is_current
+    local spec_file
+    local description
+    local escaped_id
+    local escaped_desc
+    local IFS
+    
+    repo_root=$(get_repo_root)
+    specs_dir="$repo_root/specs"
+    current_feature=$(get_current_feature)
 
     if [[ ! -d "$specs_dir" ]]; then
         echo "[]"
         return
     fi
 
-    local features=()
+    features=()
     for dir in "$specs_dir"/*; do
         if [[ -d "$dir" ]]; then
-            local feature_name=$(basename "$dir")
+            feature_name=$(basename "$dir")
             if [[ "$feature_name" =~ ^[0-9]{3}- ]]; then
                 features+=("$feature_name")
             fi
@@ -116,30 +138,33 @@ list_features() {
     fi
 
     # Sort features numerically
-    IFS=$'\n' features=($(sort <<<"${features[*]}"))
+    IFS=$'\n'
+    features=($(sort <<<"${features[*]}"))
     unset IFS
 
-    # Build JSON using jq for proper formatting and escaping
-    local json_array="[]"
-
+    # Build JSON manually with proper escaping
+    json_items=()
+    
     for feature in "${features[@]}"; do
-        local is_current="false"
+        is_current="false"
         [[ "$feature" == "$current_feature" ]] && is_current="true"
 
-        local spec_file="$specs_dir/$feature/spec.md"
-        local description=""
+        spec_file="$specs_dir/$feature/spec.md"
+        description=""
         if [[ -f "$spec_file" ]]; then
             description=$(grep -m 1 "^# " "$spec_file" 2>/dev/null | sed 's/^# //' || echo "")
         fi
 
-        # Use jq to create properly formatted JSON object and append to array
-        json_array=$(echo "$json_array" | jq --arg id "$feature" \
-                                              --arg desc "$description" \
-                                              --argjson current "$is_current" \
-                                              '. += [{"id": $id, "description": $desc, "current": $current}]')
+        # Escape JSON values and build object
+        escaped_id=$(json_escape "$feature")
+        escaped_desc=$(json_escape "$description")
+        
+        json_items+=("{\"id\":\"$escaped_id\",\"description\":\"$escaped_desc\",\"current\":$is_current}")
     done
 
-    echo "$json_array"
+    # Join array elements with commas and wrap in brackets
+    IFS=','
+    echo "[${json_items[*]}]"
 }
 
 # Create new feature (moved from create-new-feature.sh)
