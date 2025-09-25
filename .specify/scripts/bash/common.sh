@@ -8,14 +8,16 @@ get_repo_root() {
         git rev-parse --show-toplevel
     else
         # Fall back to script location for non-git repos
-        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         (cd "$script_dir/../../.." && pwd)
     fi
 }
 
 # Get current feature from memory file
 get_current_feature() {
-    local repo_root=$(get_repo_root)
+    local repo_root
+    repo_root=$(get_repo_root)
     local memory_file="$repo_root/.specify/memory/current"
 
     # First check if SPECIFY_FEATURE environment variable is set
@@ -26,7 +28,8 @@ get_current_feature() {
 
     # Check memory file
     if [[ -f "$memory_file" ]] && [[ -s "$memory_file" ]]; then
-        local current_feature=$(cat "$memory_file" | tr -d '\n' | tr -d ' ')
+        local current_feature
+        current_feature=$(cat "$memory_file" | tr -d '\n' | tr -d ' ')
         if [[ -n "$current_feature" ]]; then
             echo "$current_feature"
             return
@@ -42,7 +45,8 @@ get_current_feature() {
 
         for dir in "$specs_dir"/*; do
             if [[ -d "$dir" ]]; then
-                local dirname=$(basename "$dir")
+                local dirname
+                dirname=$(basename "$dir")
                 if [[ "$dirname" =~ ^([0-9]{3})- ]]; then
                     local number=${BASH_REMATCH[1]}
                     number=$((10#$number))
@@ -66,7 +70,8 @@ get_current_feature() {
 # Set current feature in memory file
 set_current_feature() {
     local feature_id="$1"
-    local repo_root=$(get_repo_root)
+    local repo_root
+    repo_root=$(get_repo_root)
     local memory_file="$repo_root/.specify/memory/current"
 
     if [[ -z "$feature_id" ]]; then
@@ -138,9 +143,7 @@ list_features() {
     fi
 
     # Sort features numerically
-    IFS=$'\n'
-    features=($(sort <<<"${features[*]}"))
-    unset IFS
+    mapfile -t features < <(printf '%s\n' "${features[@]}" | sort)
 
     # Build JSON manually with proper escaping
     json_items=()
@@ -177,7 +180,8 @@ create_new_feature() {
         return 1
     fi
 
-    local repo_root=$(get_repo_root)
+    local repo_root
+    repo_root=$(get_repo_root)
     local specs_dir="$repo_root/specs"
     mkdir -p "$specs_dir"
 
@@ -186,8 +190,10 @@ create_new_feature() {
     if [[ -d "$specs_dir" ]]; then
         for dir in "$specs_dir"/*; do
             if [[ -d "$dir" ]]; then
-                local dirname=$(basename "$dir")
-                local number=$(echo "$dirname" | grep -o '^[0-9]\+' || echo "0")
+                local dirname
+                dirname=$(basename "$dir")
+                local number
+                number=$(echo "$dirname" | grep -o '^[0-9]\+' || echo "0")
                 number=$((10#$number))
                 if [[ "$number" -gt "$highest" ]]; then
                     highest=$number
@@ -197,11 +203,14 @@ create_new_feature() {
     fi
 
     local next=$((highest + 1))
-    local feature_num=$(printf "%03d" "$next")
+    local feature_num
+    feature_num=$(printf "%03d" "$next")
 
     # Create feature ID from description
-    local feature_words=$(echo "$feature_description" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//')
-    local words=$(echo "$feature_words" | tr '-' '\n' | grep -v '^$' | head -3 | tr '\n' '-' | sed 's/-$//')
+    local feature_words
+    feature_words=$(echo "$feature_description" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//')
+    local words
+    words=$(echo "$feature_words" | tr '-' '\n' | grep -v '^$' | head -3 | tr '\n' '-' | sed 's/-$//')
     local feature_id="${feature_num}-${words}"
 
     # Create feature directory
@@ -232,8 +241,10 @@ create_new_feature() {
 # Setup plan for current feature (moved from setup-plan.sh)
 setup_plan() {
     local json_mode="${1:-false}"
-    local repo_root=$(get_repo_root)
-    local current_feature=$(get_current_feature)
+    local repo_root
+    repo_root=$(get_repo_root)
+    local current_feature
+    current_feature=$(get_current_feature)
 
     if [[ -z "$current_feature" || "$current_feature" == "main" ]]; then
         echo "ERROR: No current feature set. Use set-current-feature or create a new feature first." >&2
@@ -279,7 +290,8 @@ focus_feature() {
         return 1
     fi
 
-    local repo_root=$(get_repo_root)
+    local repo_root
+    repo_root=$(get_repo_root)
     local specs_dir="$repo_root/specs"
 
     # Get all features
@@ -287,7 +299,8 @@ focus_feature() {
     if [[ -d "$specs_dir" ]]; then
         for dir in "$specs_dir"/*; do
             if [[ -d "$dir" ]]; then
-                local feature_name=$(basename "$dir")
+                local feature_name
+                feature_name=$(basename "$dir")
                 if [[ "$feature_name" =~ ^[0-9]{3}- ]]; then
                     features+=("$feature_name")
                 fi
@@ -333,7 +346,8 @@ focus_feature() {
     for feature in "${features[@]}"; do
         local spec_file="$specs_dir/$feature/spec.md"
         if [[ -f "$spec_file" ]]; then
-            local description=$(grep -m 1 "^# " "$spec_file" 2>/dev/null | sed 's/^# //' || echo "")
+            local description
+            description=$(grep -m 1 "^# " "$spec_file" 2>/dev/null | sed 's/^# //' || echo "")
             if [[ "$description" == *"$user_input"* ]]; then
                 desc_matches+=("$feature")
             fi
@@ -347,7 +361,8 @@ focus_feature() {
         echo "Multiple description matches found:"
         for match in "${desc_matches[@]}"; do
             local spec_file="$specs_dir/$match/spec.md"
-            local description=$(grep -m 1 "^# " "$spec_file" 2>/dev/null | sed 's/^# //' || echo "No description")
+            local description
+            description=$(grep -m 1 "^# " "$spec_file" 2>/dev/null | sed 's/^# //' || echo "No description")
             echo "  $match: $description"
         done
         echo "Please be more specific."
@@ -368,15 +383,18 @@ has_git() {
 get_feature_dir() { echo "$1/specs/$2"; }
 
 get_feature_paths() {
-    local repo_root=$(get_repo_root)
-    local current_feature=$(get_current_feature)
+    local repo_root
+    repo_root=$(get_repo_root)
+    local current_feature
+    current_feature=$(get_current_feature)
     local has_git_repo="false"
 
     if has_git; then
         has_git_repo="true"
     fi
 
-    local feature_dir=$(get_feature_dir "$repo_root" "$current_feature")
+    local feature_dir
+    feature_dir=$(get_feature_dir "$repo_root" "$current_feature")
 
     cat <<EOF
 REPO_ROOT='$repo_root'
